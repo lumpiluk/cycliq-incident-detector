@@ -2,6 +2,8 @@
 
 # Helpful resource: https://apmonitor.com/dde/index.php/Main/AudioAnalysis
 
+import sys
+import io
 import argparse
 import pathlib
 import numpy as np
@@ -17,11 +19,15 @@ def main():
     parser.add_argument(
         '--audio-in',
         type=pathlib.Path,
-        required=True,
     )
     args = parser.parse_args()
+    audio_file = args.audio_in
+    if not sys.stdin.isatty():
+        # Using piped input instead,
+        # and using BytesIO to avoid complaint that input is not seekable
+        audio_file = io.BytesIO(sys.stdin.buffer.read())
 
-    s, a = scipy.io.wavfile.read(args.audio_in)
+    s, a = scipy.io.wavfile.read(audio_file)
     a = a[:, 0]  # use only one of the two stereo channels
 
     # downsample:
