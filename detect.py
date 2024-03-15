@@ -4,6 +4,7 @@
 
 import sys
 import io
+import subprocess
 import argparse
 import pathlib
 import numpy as np
@@ -20,12 +21,22 @@ def main():
         '--audio-in',
         type=pathlib.Path,
     )
+    parser.add_argument(
+        '--video-in',
+        type=pathlib.Path,
+    )
     args = parser.parse_args()
     audio_file = args.audio_in
     if not sys.stdin.isatty():
         # Using piped input instead,
         # and using BytesIO to avoid complaint that input is not seekable
         audio_file = io.BytesIO(sys.stdin.buffer.read())
+    if args.video_in is not None:
+        ffmpeg_process = subprocess.Popen(
+            ['ffmpeg', '-i', args.video_in, '-f', 'wav', '-'],
+            stdout=subprocess.PIPE,
+        )
+        audio_file = io.BytesIO(ffmpeg_process.stdout.read())
 
     s, a = scipy.io.wavfile.read(audio_file)
     a = a[:, 0]  # use only one of the two stereo channels
