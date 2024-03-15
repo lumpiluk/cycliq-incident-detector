@@ -53,8 +53,17 @@ def process_video(
         plot_volume=False,
         plot_spectrogram=False,
 ):
+    print(f"Reading {video_path}…")
+    ffmpeg_cmd = [
+        'ffmpeg',
+        '-hide_banner', '-loglevel', 'error',
+        '-i', str(video_path),
+        '-f', 'wav',
+        '-'
+    ]
+    print(" ".join(ffmpeg_cmd))
     ffmpeg_process = subprocess.Popen(
-        ['ffmpeg', '-i', video_path, '-f', 'wav', '-'],
+        ffmpeg_cmd,
         stdout=subprocess.PIPE,
     )
     audio_file = io.BytesIO(ffmpeg_process.stdout.read())
@@ -65,43 +74,55 @@ def process_video(
     # downsample:
     target_rate = 8000
     resampling_ratio = target_rate / sample_rate
-    a = scipy.signal.resample(samples, int(len(samples) * resampling_ratio))
+    samples = scipy.signal.resample(samples, int(len(samples) * resampling_ratio))
     sample_rate = target_rate
 
     print('Sampling Rate:', sample_rate)
-    print('Audio Shape:', np.shape(a))
-
-    # xlim = (184, 186)  # known beep time in test.wav
+    print('Audio Shape:', np.shape(samples))
 
     f_min = 2000
     f_max = 3000
     ex_times, ex_volume = extract_frequency(
-        a,
+        samples,
         sample_rate,
         f_min=f_min,
         f_max=f_max
     )
 
     # find peaks
-    peaks, props = scipy.signal.find_peaks(
-        ex_volume,
-        height=1000,
+    sos = scipy.signal.iirfilter(
+        4,
+        Wn=[10, 1100],  # critical frequencies
+        fs=sample_rate,
+        btype="bandpass",
+        ftype="butter",
+        output="sos",
     )
+    yfilt = scipy.signal.sosfilt(sos, ex_volume)
+
+    peaks, props = scipy.signal.find_peaks(
+        yfilt,
+        height=200,
+    )
+    # peaks = scipy.signal.find_peaks_cwt(
+    #     ex_volume,
+    #     widths=(int(.002 * sample_rate), int(.3 * sample_rate)),
+    # )
     peak_times = ex_times[peaks]
-    peak_vals = ex_volume[peaks]
-    print(f"{peak_times=}\n{peak_vals=}\n{props=}")
+    peak_vals = yfilt[peaks]
+    print(f"{peak_times=}\n{peak_vals=}")
     triple_beep_times = find_triple_beeps(
         peak_times,
-        td_min=75e-3,
-        td_max=100e-3
+        td_min=60e-3,
+        td_max=120e-3
     )
     print(f"{triple_beep_times=}")
 
     if plot_volume:
         fig, ax = plt.subplots(figsize=(8, 6))
         ax.plot(ex_times, ex_volume)
-        # ax.set_xlim(*xlim)
-        ax.set_xlim(130, 186)
+        ax.plot(ex_times, yfilt)
+        # ax.set_xlim(27, 29)
         ax.set_xlabel("Time (s)")
         ax.set_ylabel("Volume")
         ax.plot(peak_times, peak_vals, 'x')
@@ -109,7 +130,7 @@ def process_video(
 
     if plot_spectrogram:
         fig, ax = plt.subplots(figsize=(8, 6))
-        freqs, times, spectrogram = scipy.signal.stft(a, fs=sample_rate)
+        freqs, times, spectrogram = scipy.signal.stft(samples, fs=sample_rate)
         print(
             f"{np.shape(freqs)=}, {np.shape(times)=}, {np.shape(spectrogram)=}"
         )
