@@ -18,13 +18,14 @@ def main():
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     parser.add_argument(
-        '--video-in',
+        'VIDEOS',
         type=pathlib.Path,
         nargs='+',
     )
     parser.add_argument(
         '--json-out',
         type=pathlib.Path,
+        default=pathlib.Path("incidents.json")
         required=True,
     )
     parser.add_argument(
@@ -38,7 +39,7 @@ def main():
     args = parser.parse_args()
 
     triple_beeps_by_file = dict()
-    for video_path in args.video_in:
+    for video_path in args.videos:
         triple_beeps_by_file[str(video_path.name)] = process_video(
             video_path,
             plot_volume=args.plot_volume,
