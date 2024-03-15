@@ -2,11 +2,11 @@
 
 # Helpful resource: https://apmonitor.com/dde/index.php/Main/AudioAnalysis
 
-import sys
 import io
 import subprocess
 import argparse
 import pathlib
+import json
 import numpy as np
 import matplotlib.pyplot as plt
 import scipy.io
@@ -18,50 +18,69 @@ def main():
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     parser.add_argument(
-        '--audio-in',
-        type=pathlib.Path,
-    )
-    parser.add_argument(
         '--video-in',
         type=pathlib.Path,
+        nargs='+',
+    )
+    parser.add_argument(
+        '--json-out',
+        type=pathlib.Path,
+        required=True,
+    )
+    parser.add_argument(
+        '--plot-volume',
+        action='store_true',
+    )
+    parser.add_argument(
+        '--plot-spectrogram',
+        action='store_true',
     )
     args = parser.parse_args()
-    audio_file = args.audio_in
-    if not sys.stdin.isatty():
-        # Using piped input instead,
-        # and using BytesIO to avoid complaint that input is not seekable
-        audio_file = io.BytesIO(sys.stdin.buffer.read())
-    if args.video_in is not None:
-        ffmpeg_process = subprocess.Popen(
-            ['ffmpeg', '-i', args.video_in, '-f', 'wav', '-'],
-            stdout=subprocess.PIPE,
-        )
-        audio_file = io.BytesIO(ffmpeg_process.stdout.read())
 
-    s, a = scipy.io.wavfile.read(audio_file)
-    a = a[:, 0]  # use only one of the two stereo channels
+    triple_beeps_by_file = dict()
+    for video_path in args.video_in:
+        triple_beeps_by_file[str(video_path.name)] = process_video(
+            video_path,
+            plot_volume=args.plot_volume,
+            plot_spectrogram=args.plot_spectrogram,
+        )
+    with open(args.json_out, 'w') as f:
+        json.dump(triple_beeps_by_file, f, sort_keys=True, indent=2)
+
+
+def process_video(
+        video_path: pathlib.Path,
+        plot_volume=False,
+        plot_spectrogram=False,
+):
+    ffmpeg_process = subprocess.Popen(
+        ['ffmpeg', '-i', video_path, '-f', 'wav', '-'],
+        stdout=subprocess.PIPE,
+    )
+    audio_file = io.BytesIO(ffmpeg_process.stdout.read())
+
+    sample_rate, samples = scipy.io.wavfile.read(audio_file)
+    samples = samples[:, 0]  # use only one of the two stereo channels
 
     # downsample:
     target_rate = 8000
-    resampling_ratio = target_rate / s
-    a = scipy.signal.resample(a, int(len(a) * resampling_ratio))
-    s = target_rate
+    resampling_ratio = target_rate / sample_rate
+    a = scipy.signal.resample(samples, int(len(samples) * resampling_ratio))
+    sample_rate = target_rate
 
-    print('Sampling Rate:', s)
+    print('Sampling Rate:', sample_rate)
     print('Audio Shape:', np.shape(a))
 
-    xlim = (184, 186)  # known beep time in test.wav
+    # xlim = (184, 186)  # known beep time in test.wav
 
-    # plot volume of frequency band
-    fig, ax = plt.subplots(figsize=(8, 6))
     f_min = 2000
     f_max = 3000
-    ex_times, ex_volume = extract_frequency(a, s, f_min=f_min, f_max=f_max)
-    ax.plot(ex_times, ex_volume)
-    ax.set_xlim(*xlim)
-    # ax.set_xlim(130, 186)
-    ax.set_xlabel("Time (s)")
-    ax.set_ylabel("Volume")
+    ex_times, ex_volume = extract_frequency(
+        a,
+        sample_rate,
+        f_min=f_min,
+        f_max=f_max
+    )
 
     # find peaks
     peaks, props = scipy.signal.find_peaks(
@@ -78,25 +97,36 @@ def main():
     )
     print(f"{triple_beep_times=}")
 
-    ax.plot(peak_times, peak_vals, 'x')
-    fig.savefig(f"test_hz{f_min}-{f_max}.png")
+    if plot_volume:
+        fig, ax = plt.subplots(figsize=(8, 6))
+        ax.plot(ex_times, ex_volume)
+        # ax.set_xlim(*xlim)
+        ax.set_xlim(130, 186)
+        ax.set_xlabel("Time (s)")
+        ax.set_ylabel("Volume")
+        ax.plot(peak_times, peak_vals, 'x')
+        fig.savefig(f"{video_path.stem}_hz{f_min}-{f_max}.png")
 
-    # plot spectrogram
-    fig, ax = plt.subplots(figsize=(8, 6))
-    freqs, times, spectrogram = scipy.signal.stft(a, fs=s)
-    print(f"{np.shape(freqs)=}, {np.shape(times)=}, {np.shape(spectrogram)=}")
-    print(f"{len(freqs)=}, {len(times)=}")
-    ax.pcolormesh(
-        times,
-        freqs,
-        np.log(np.abs(spectrogram) + 1e-10),
-        shading='gouraud',
-        cmap='inferno'
-    )
-    ax.set_ylabel("Frequency (Hz)")
-    ax.set_xlabel("time (s)")
-    ax.set_xlim(*xlim)
-    fig.savefig("test_spectrogram.png")
+    if plot_spectrogram:
+        fig, ax = plt.subplots(figsize=(8, 6))
+        freqs, times, spectrogram = scipy.signal.stft(a, fs=sample_rate)
+        print(
+            f"{np.shape(freqs)=}, {np.shape(times)=}, {np.shape(spectrogram)=}"
+        )
+        print(f"{len(freqs)=}, {len(times)=}")
+        ax.pcolormesh(
+            times,
+            freqs,
+            np.log(np.abs(spectrogram) + 1e-10),
+            shading='gouraud',
+            cmap='inferno'
+        )
+        ax.set_ylabel("Frequency (Hz)")
+        ax.set_xlabel("time (s)")
+        # ax.set_xlim(*xlim)
+        fig.savefig(f"{video_path.stem}_spectrogram.png")
+
+    return triple_beep_times
 
 
 def find_triple_beeps(peak_times, td_min, td_max):
@@ -112,7 +142,6 @@ def find_triple_beeps(peak_times, td_min, td_max):
         ):
             triple_beeps.append(peak_times[i])
     return triple_beeps
-
 
 
 def extract_frequency(data, sample_rate: int, f_min=2000, f_max=3000):
