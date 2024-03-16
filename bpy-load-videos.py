@@ -2,6 +2,8 @@ import sys
 import argparse
 import json
 import pathlib
+import subprocess
+import re
 import bpy
 
 
@@ -76,6 +78,7 @@ def blender_main():
         incident_times_by_video = json.load(f)
 
     for video_filename, beep_times in incident_times_by_video.items():
+        get_video_metrics(video_filename)
         for beep_time in beep_times:
             add_incident_to_timeline(
                 video_filename=video_filename,
@@ -103,6 +106,20 @@ def add_incident_to_timeline(
     #     # TODO: check if next video file exists
     #     pass
 
+
+def get_exif(
+    file_path: pathlib.Path,
+):
+    exiftool_process = subprocess.Popen(
+        ['exiftool', str(file_path)],
+        stdout=subprocess.PIPE,
+    )
+    metrics = dict()
+    for line in exiftool_process.stdout:
+        k, v = str(line).split(':', maxsplit=1)
+        metrics[k.strip()] = v.strip()[:-3]
+        # '[:-3] is for removing the trailing '\\n'
+    return metrics
 
 if __name__ == '__main__':
     blender_main()

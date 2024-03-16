@@ -36,6 +36,18 @@ def main():
         '--plot-spectrogram',
         action='store_true',
     )
+    parser.add_argument(
+        '--blender',
+        action='store_true',
+        help=(
+            "Launch Blender with all incidents loaded up in "
+            "the VSE."
+        ),  # TODO
+    )
+    # TODO: blender clip length
+    # TODO: blender: automatically use previos clip if incident at
+    #  start of video (correspondingly for the end)
+    # TODO: detection parameters
     args = parser.parse_args()
 
     triple_beeps_by_file = dict()
