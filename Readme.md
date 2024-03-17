@@ -7,6 +7,15 @@ After analyzing the footage, the script will output an `incidents.json` containi
 
 If `--blender` is set, Blender will be opened and the video sequence editor (VSE) will be preloaded with the incidents plus a few seconds of context.
 
+## Dependencies
+
+- Python (tested with 3.11)
+  - Scipy
+
+Optional:
+- [Blender](https://blender.org)
+- [Exiftool](https://github.com/exiftool/exiftool)
+
 ## Usage
 
 ```bash
