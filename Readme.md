@@ -11,6 +11,7 @@ If `--blender` is set, Blender will be opened and the video sequence editor (VSE
 
 - Python (tested with 3.11)
   - Scipy
+- FFMPEG
 
 Optional:
 - [Blender](https://blender.org)
