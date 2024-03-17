@@ -3,11 +3,15 @@
 Scrubbing through dashcam footage to find the actual incidents is tedious – especially if you live in a city where an incident happens every other kilometer.
 This script listens to the triple-beep of Cycliq bicycle dashcams that you get when you press the record incident button.
 
+After analyzing the footage, the script will output an `incidents.json` containing the detected incident timestamps.
+
+If `--blender` is set, Blender will be opened and the video sequence editor (VSE) will be preloaded with the incidents plus a few seconds of context.
+
 ## Usage
 
 ```bash
 cd path/to/dashcam/footage
 
 # Assuming this script is in your PATH
-dashcam-detect.py --video-in ./*.MP4
+dashcam-detect.py --blender ./*.MP4
 ```

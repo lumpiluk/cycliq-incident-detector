@@ -18,15 +18,14 @@ def main():
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     parser.add_argument(
-        'VIDEOS',
+        'videos',
         type=pathlib.Path,
         nargs='+',
     )
     parser.add_argument(
         '--json-out',
         type=pathlib.Path,
-        default=pathlib.Path("incidents.json")
-        required=True,
+        default=pathlib.Path("incidents.json"),
     )
     parser.add_argument(
         '--plot-volume',
@@ -59,6 +58,18 @@ def main():
         )
     with open(args.json_out, 'w') as f:
         json.dump(triple_beeps_by_file, f, sort_keys=True, indent=2)
+
+    if args.blender:
+        blender_process = subprocess.Popen(
+            [
+                'blender',
+                '--python',
+                str(pathlib.Path(__file__).parent / 'bpy-load-videos.py'),
+                '--',
+                '--incidents-json', str(args.json_out),
+                'incidents.blend',
+            ],
+        )
 
 
 def process_video(
