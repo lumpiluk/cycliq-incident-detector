@@ -1,9 +1,9 @@
 import sys
+import math
 import argparse
 import json
 import pathlib
 import subprocess
-import re
 import bpy
 
 
@@ -76,10 +76,21 @@ def blender_main():
 
     with open(args.incidents_json, 'r') as f:
         incident_times_by_video = json.load(f)
+    if len(incident_times_by_video) == 0:
+        print("No incidents found")
+        return
 
-    for video_filename, beep_times in incident_times_by_video.items():
-        get_video_metrics(video_filename)
-        for beep_time in beep_times:
+    # We'll assume that all videos have the same resolution and frame rate.
+    # -> Set Blender settings accordingly:
+    exif = get_exif(sorted(incident_times_by_video.keys())[0])
+    bpy.context.scene.render.resolution_x = int(exif['Source Image Width'])
+    bpy.context.scene.render.resolution_y = int(exif['Source Image Height'])
+    fps = float(exif['Video Frame Rate'])
+    bpy.context.scene.render.fps = math.ceil(fps)
+    bpy.context.scene.render.fps_base = math.ceil(fps) / fps
+
+    for video_filename in sorted(incident_times_by_video.keys()):
+        for beep_time in incident_times_by_video[video_filename]:
             add_incident_to_timeline(
                 video_filename=video_filename,
                 beep_time=beep_time,
@@ -117,9 +128,11 @@ def get_exif(
     metrics = dict()
     for line in exiftool_process.stdout:
         k, v = str(line).split(':', maxsplit=1)
-        metrics[k.strip()] = v.strip()[:-3]
+        metrics[k.strip()[2:]] = v.strip()[:-3]
+        # '[2:] is for removing the "b'" at the start
         # '[:-3] is for removing the trailing '\\n'
     return metrics
+
 
 if __name__ == '__main__':
     blender_main()
