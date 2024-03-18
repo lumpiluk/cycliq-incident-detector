@@ -34,8 +34,8 @@ class ArgumentParserForBlender(argparse.ArgumentParser):
         """
         try:
             idx = sys.argv.index("--")
-            return sys.argv[idx+1:] # the list after '--'
-        except ValueError as e: # '--' not in the list:
+            return sys.argv[idx+1:]  # the list after '--'
+        except ValueError:  # '--' not in the list:
             return []
 
     # overrides superclass
@@ -87,7 +87,7 @@ def blender_main():
         return
 
     # We'll assume that all videos have the same resolution and frame rate.
-    # -> Set Blender settings accordingly:
+    # -> Set Blender settings according to the first video:
     exif = get_exif(sorted(incident_times_by_video.keys())[0])
     bpy.context.scene.render.resolution_x = int(exif['Source Image Width'])
     bpy.context.scene.render.resolution_y = int(exif['Source Image Height'])
@@ -97,19 +97,20 @@ def blender_main():
 
     i_incident = 0
     for video_filename in sorted(incident_times_by_video.keys()):
-        for beep_time in incident_times_by_video[video_filename]:
-            print(f"Adding incident {video_filename=}, {beep_time=} s")
+        for beep_timestamp in incident_times_by_video[video_filename]:
+            print(f"Adding incident {video_filename=}, {beep_timestamp=} s")
             add_incident_to_timeline(
                 video_filename=video_filename,
-                beep_time=beep_time,
+                beep_timestamp=beep_timestamp,
                 context_before=args.context_before,
                 context_after=args.context_after,
-                start_frame = int(
+                start_frame=int(
                     i_incident
                     * (args.context_before + args.context_after)
                     * fps
                 ),
                 fps=fps,
+                channel=1 + (i_incident % 2) * 2
             )
             i_incident += 1
 
@@ -142,42 +143,120 @@ def blender_main():
 
 def add_incident_to_timeline(
     video_filename: str,
-    beep_time: float,
+    beep_timestamp: float,
     context_before: float,
     context_after: float,
     start_frame: int,
     fps: float,
+    channel: int,
 ):
-    v_sequence = bpy.context.scene.sequence_editor.sequences.new_movie(
-        name=video_filename,
-        filepath=video_filename,  # TODO: path?
-        frame_start=start_frame,
-        channel=0,
-    )
-    a_sequence = bpy.context.scene.sequence_editor.sequences.new_sound(
-        name=video_filename,
-        filepath=video_filename,  # TODO: path?
-        frame_start=start_frame,
-        channel=0,
+    v_sequence, a_sequence, frame_duration_original = insert_movie(
+        video_filename=video_filename,
+        frame_start=int(
+            start_frame
+            + max(0, context_before - beep_timestamp) * fps
+            # ^ gap for prev context clip
+            - max(0, beep_timestamp - context_before) * fps
+        ),
+        frame_offset_start=int(max(0, beep_timestamp - context_before) * fps),
+        frame_final_duration=int(
+            (
+                min(context_before, beep_timestamp)
+                + context_after
+            )
+            * fps
+        ),
+        channel=channel,
     )
 
-    print(f"new {v_sequence=}")
-    frame_start = start_frame - (beep_time - context_before) * fps
-    frame_offset_start = (beep_time - context_before) * fps
-    frame_final_duration = int((context_before + context_after) * fps)
+    # Extract the number from a file name like 'CYQ_0001.MP4':
+    video_path = pathlib.Path(video_filename)
+    video_id = int(video_path.stem.split('_')[1])
+
+    # We may exceed the length of the current video with the
+    # requested amount of context.
+    # -> Support up to one predecessor and one successor clip:
+    if beep_timestamp < context_before:
+        prev_video_path = video_path.parent / f"CYQ_{video_id - 1:04d}.MP4"
+        if prev_video_path.exists():
+            frame_final_duration = (context_before - beep_timestamp) * fps
+            insert_movie(
+                video_filename=prev_video_path,
+                frame_start=start_frame - frame_final_duration,
+                frame_offset_start=(
+                    frame_duration_original - frame_final_duration
+                ),
+                frame_final_duration=frame_final_duration,
+                channel=channel,
+            )
+    if beep_timestamp * fps > frame_duration_original - context_after * fps:
+        next_video_path = video_path.parent / f"CYQ_{video_id + 1:04d}.MP4"
+        if next_video_path.exists():
+            frame_remaining_context = int(context_after * fps - (
+                frame_duration_original
+                - beep_timestamp * fps
+            ))
+            insert_movie(
+                video_filename=next_video_path,
+                frame_start=int(
+                    start_frame
+                    + context_before * fps
+                    + context_after * fps - frame_remaining_context
+                ),
+                frame_offset_start=0,
+                frame_final_duration=frame_remaining_context,
+                channel=channel,
+            )
+
+
+def insert_movie(
+    video_filename: str,
+    frame_start: int,
+    frame_offset_start: int,
+    frame_final_duration: int,
+    channel: int,
+):
+    """
+    Insert a video and an audio strip for the given video filename.
+
+    Blender defines frame_start differently than we define start_frame;
+    frame_start is the value before frame_offset_start is added!
+    So if we want to start seeing a video at frame 1 in our timeline
+    from which we want to exclude the first 25 frames, then
+    frame_start should be -25.
+    """
+    v_sequence = bpy.context.scene.sequence_editor.sequences.new_movie(
+        name=str(video_filename),
+        filepath=str(video_filename),
+        frame_start=frame_start,
+        channel=channel+1,
+    )
+    a_sequence = bpy.context.scene.sequence_editor.sequences.new_sound(
+        name=str(video_filename),
+        filepath=str(video_filename),
+        frame_start=frame_start,
+        channel=channel,
+    )
+    frame_duration_original = v_sequence.frame_final_duration
+    # We assume here that frame_final_duration may be too long
+    # because we unconditionally add context_after in the call of this
+    # function.
+    # Now that we have access to frame_time_original, we can
+    # make a correction:
+    # E.g., frame_duration_original is 1000, frame_offset_start is 900,
+    # and we claim to want a final duration of 200 frames.
+    frame_final_duration = min(
+        frame_final_duration,
+        frame_duration_original - frame_offset_start
+    )
     v_sequence.frame_start = frame_start
     v_sequence.frame_offset_start = frame_offset_start
     v_sequence.frame_final_duration = frame_final_duration
     a_sequence.frame_start = frame_start
     a_sequence.frame_offset_start = frame_offset_start
     a_sequence.frame_final_duration = frame_final_duration
-    # if beep_time < context_time:
-    #     # TODO: check if previous video file exists
-    #     pass
-    # video_len = 0  # TODO
-    # if beep_time > video_len - context_time:
-    #     # TODO: check if next video file exists
-    #     pass
+
+    return v_sequence, a_sequence, frame_duration_original
 
 
 def get_exif(

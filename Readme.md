@@ -9,9 +9,9 @@ If `--blender` is set, Blender will be opened and the video sequence editor (VSE
 
 ## Dependencies
 
-- Python (tested with 3.11)
-  - Scipy
-- FFMPEG
+- [Python](https://www.python.org/) (tested with 3.11)
+  - [Scipy](https://scipy.org/)
+- [FFmpeg](https://ffmpeg.org/)
 
 Optional:
 - [Blender](https://blender.org)

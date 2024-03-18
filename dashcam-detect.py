@@ -41,11 +41,8 @@ def main():
         help=(
             "Launch Blender with all incidents loaded up in "
             "the VSE."
-        ),  # TODO
+        ),
     )
-    # TODO: blender clip length
-    # TODO: blender: automatically use previos clip if incident at
-    #  start of video (correspondingly for the end)
     # TODO: detection parameters
     args = parser.parse_args()
 
