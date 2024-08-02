@@ -187,6 +187,9 @@ def find_triple_beeps(peak_times, td_min, td_max):
 
 
 def extract_frequency(data, sample_rate: int, f_min=2000, f_max=3000):
+    """
+    Get the volume over time of a given frequency band.
+    """
     # With help from ChatGPT…
     freqs, times, spectrogram = scipy.signal.stft(data, fs=sample_rate)
     f_band_indices = np.where((freqs >= f_min) & (freqs <= f_max))[0]
