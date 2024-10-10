@@ -67,7 +67,7 @@ def main():
             json.dump(triple_beeps_by_file, f, sort_keys=True, indent=2)
 
     if args.blender:
-        blender_process = subprocess.Popen(
+        _ = subprocess.Popen(
             [
                 'blender',
                 '--python',
@@ -105,7 +105,10 @@ def process_video(
     # downsample:
     target_rate = 8000
     resampling_ratio = target_rate / sample_rate
-    samples = scipy.signal.resample(samples, int(len(samples) * resampling_ratio))
+    samples = scipy.signal.resample(
+        samples,
+        int(len(samples) * resampling_ratio),
+    )
     sample_rate = target_rate
 
     print('Sampling Rate:', sample_rate)
