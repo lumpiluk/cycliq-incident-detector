@@ -182,11 +182,11 @@ def add_incident_to_timeline(
             frame_final_duration = (context_before - beep_timestamp) * fps
             insert_movie(
                 video_filename=prev_video_path,
-                frame_start=start_frame - frame_final_duration,
-                frame_offset_start=(
+                frame_start=int(start_frame - frame_final_duration),
+                frame_offset_start=int(
                     frame_duration_original - frame_final_duration
                 ),
-                frame_final_duration=frame_final_duration,
+                frame_final_duration=int(frame_final_duration),
                 channel=channel,
             )
     if beep_timestamp * fps > frame_duration_original - context_after * fps:
