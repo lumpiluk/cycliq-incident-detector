@@ -20,12 +20,17 @@ def main():
     parser.add_argument(
         'videos',
         type=pathlib.Path,
-        nargs='+',
+        nargs='*',
     )
     parser.add_argument(
         '--json-out',
         type=pathlib.Path,
         default=pathlib.Path("incidents.json"),
+    )
+    parser.add_argument(
+        '--json-in',
+        type=pathlib.Path,
+        default=None,
     )
     parser.add_argument(
         '--plot-volume',
@@ -53,8 +58,13 @@ def main():
             plot_volume=args.plot_volume,
             plot_spectrogram=args.plot_spectrogram,
         )
-    with open(args.json_out, 'w') as f:
-        json.dump(triple_beeps_by_file, f, sort_keys=True, indent=2)
+
+    if args.json_in:
+        with open(args.json_in, 'r') as f:
+            triple_beeps_by_file = json.load(f)
+    else:
+        with open(args.json_out, 'w') as f:
+            json.dump(triple_beeps_by_file, f, sort_keys=True, indent=2)
 
     if args.blender:
         blender_process = subprocess.Popen(
