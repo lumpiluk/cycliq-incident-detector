@@ -89,6 +89,12 @@ def blender_main():
     # We'll assume that all videos have the same resolution and frame rate.
     # -> Set Blender settings according to the first video:
     exif = get_exif(sorted(incident_times_by_video.keys())[0])
+    if "Source Image Width" not in exif:
+        raise ValueError(
+            f"'Source Image Width' missing from exif data "
+            f"for {sorted(incident_times_by_video.keys())[0]}: "
+            f"\n{exif}"
+        )
     bpy.context.scene.render.resolution_x = int(exif['Source Image Width'])
     bpy.context.scene.render.resolution_y = int(exif['Source Image Height'])
     fps = float(exif['Video Frame Rate'])
