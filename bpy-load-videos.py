@@ -1,9 +1,11 @@
-import sys
-import math
 import argparse
 import json
+import math
 import pathlib
+import re
 import subprocess
+import sys
+
 import bpy
 
 
@@ -177,7 +179,14 @@ def add_incident_to_timeline(
 
     # Extract the number from a file name like 'CYQ_0001.MP4':
     video_path = pathlib.Path(video_filename)
-    video_id = int(video_path.stem.split('_')[1])
+    if m := re.match(r"CYQ_(?P<vid_id>\d+).MP4", video_path.name):
+        video_id = int(m["vid_id"])
+    else:
+        print(
+            f"Not adding context clips: "
+            f"File name {video_path.name} does not match the expected format."
+        )
+        return
 
     # We may exceed the length of the current video with the
     # requested amount of context.
@@ -231,13 +240,13 @@ def insert_movie(
     from which we want to exclude the first 25 frames, then
     frame_start should be -25.
     """
-    v_sequence = bpy.context.scene.sequence_editor.sequences.new_movie(
+    v_sequence = bpy.context.scene.sequence_editor.strips.new_movie(
         name=str(video_filename),
         filepath=str(video_filename),
         frame_start=frame_start,
         channel=channel+1,
     )
-    a_sequence = bpy.context.scene.sequence_editor.sequences.new_sound(
+    a_sequence = bpy.context.scene.sequence_editor.strips.new_sound(
         name=str(video_filename),
         filepath=str(video_filename),
         frame_start=frame_start,
